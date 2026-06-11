@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 
 // ============================================
-// CENSURAY v7 — Connected to real backend
+// CENSURAY v8 — Regional dictionaries
 // ============================================
 
 const SUPABASE_URL = 'https://fjdqpqggbtvjmoccnnib.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZqZHFwcWdnYnR2am1vY2NubmliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxOTgwNDIsImV4cCI6MjA5MTc3NDA0Mn0.7SueogNOy9a8Ocy6uVm5a3KT72WUorXw50Riscacn8M';
 const BACKEND_URL = 'https://censuray-backend-production.up.railway.app';
 
-// Lightweight Supabase client
+// Supabase client
 const supabase = {
   headers: () => ({
     'Content-Type': 'application/json',
@@ -48,10 +48,10 @@ const supabase = {
     });
     const data = await res.json();
     if (!res.ok || data.error || !data.access_token) {
-      const raw = data.error_description || data.msg || data.error?.message || 'Credenciales inválidas';
+      const raw = data.error_description || data.msg || data.error?.message || 'Credenciales invalidas';
       let friendly = raw;
-      if (/invalid.*credentials/i.test(raw)) friendly = 'Email o contraseña incorrectos';
-      else if (/email.*not.*confirmed/i.test(raw)) friendly = 'Confirmá tu email antes de iniciar sesión';
+      if (/invalid.*credentials/i.test(raw)) friendly = 'Email o contrasena incorrectos';
+      else if (/email.*not.*confirmed/i.test(raw)) friendly = 'Confirma tu email antes de iniciar sesion';
       throw new Error(friendly);
     }
     supabase._accessToken = data.access_token;
@@ -131,8 +131,14 @@ const supabase = {
   _notify(user) { supabase._listeners.forEach(fn => fn(user)); },
 };
 
-// Backend API client
+// Backend API
 const api = {
+  async getRegions() {
+    const res = await fetch(`${BACKEND_URL}/api/regions`);
+    if (!res.ok) throw new Error('No se pudieron cargar las regiones');
+    return res.json();
+  },
+
   async processAudio(file, config) {
     const formData = new FormData();
     formData.append('file', file);
@@ -186,7 +192,6 @@ function handleOAuthRedirect() {
   }
 }
 
-// Theme
 const P = {
   light: {
     bg:'#F7F5F2', bgAlt:'#EFECE8', surface:'#FFFFFF', surfaceHov:'#FAFAF8',
@@ -226,14 +231,20 @@ const DEFAULT_FEATURES = {
   category_brands: { enabled: false },
   custom_keywords: { enabled: false },
   custom_replacement_sound: { enabled: false },
-  sensitivity_levels: { enabled: false },
+  sensitivity_levels: { enabled: true },
 };
 
 const CATEGORIES = [
-  { id:'profanity', label:'Groserías y vulgaridades', desc:'Malas palabras, insultos', icon:'🤬', featureKey:'category_profanity' },
-  { id:'names', label:'Nombres propios', desc:'Nombres de personas mencionadas', icon:'👤', featureKey:'category_names' },
-  { id:'personal', label:'Datos personales', desc:'Teléfonos, emails, cuentas', icon:'🔒', featureKey:'category_personal_data' },
-  { id:'brands', label:'Marcas y empresas', desc:'Compañías, productos', icon:'🏢', featureKey:'category_brands' },
+  { id:'profanity', label:'Groserias generales', desc:'Malas palabras e insultos', icon:'🤬', featureKey:'category_profanity' },
+  { id:'names', label:'Nombres propios', desc:'Nombres de personas', icon:'👤', featureKey:'category_names' },
+  { id:'personal', label:'Datos personales', desc:'Telefonos, emails, cuentas', icon:'🔒', featureKey:'category_personal_data' },
+  { id:'brands', label:'Marcas y empresas', desc:'Companias, productos', icon:'🏢', featureKey:'category_brands' },
+];
+
+const ADVANCED_CATEGORIES = [
+  { id:'sexual', label:'Contenido sexual', desc:'Palabras y referencias sexuales explicitas', icon:'🔞' },
+  { id:'slurs', label:'Insultos discriminatorios', desc:'Slurs raciales, de genero, homofobicos', icon:'⚠️' },
+  { id:'blasphemy', label:'Blasfemias', desc:'Referencias religiosas ofensivas', icon:'⛪' },
 ];
 
 const SOUNDS = [
@@ -242,9 +253,9 @@ const SOUNDS = [
 ];
 
 const SENSITIVITY = [
-  { id:'low', label:'Baja', desc:'Solo explícitas' },
-  { id:'medium', label:'Media', desc:'Expresiones fuertes' },
-  { id:'high', label:'Alta', desc:'Todo potencialmente ofensivo' },
+  { id:'mild', label:'Baja', desc:'Solo palabras suaves y todo lo mas fuerte' },
+  { id:'medium', label:'Media', desc:'Palabras medias y fuertes' },
+  { id:'strong', label:'Alta', desc:'Solo lo mas fuerte' },
 ];
 
 // Components
@@ -298,6 +309,24 @@ function KeywordTag({word, onRemove, c}) {
       {word}
       <button onClick={onRemove} style={{width:18, height:18, borderRadius:4, border:'none', background:'transparent', color:c.accent, cursor:'pointer', fontSize:13, display:'flex', alignItems:'center', justifyContent:'center', padding:0}}>×</button>
     </span>
+  );
+}
+
+function RegionCard({region, selected, onClick, c}) {
+  return (
+    <button onClick={onClick} style={{
+      flex:1, minWidth:0,
+      padding:'14px 12px', borderRadius:12,
+      border: `2px solid ${selected ? c.accent : c.border}`,
+      background: selected ? c.accentMist : 'transparent',
+      cursor:'pointer', textAlign:'center',
+      display:'flex', flexDirection:'column', alignItems:'center', gap:6,
+      transition:'all .2s',
+    }}>
+      <span style={{fontSize:28, lineHeight:1}}>{region.flag}</span>
+      <span style={{fontFamily:'var(--font-body)', fontSize:13, fontWeight:600, color: selected ? c.accent : c.text}}>{region.name}</span>
+      <span style={{fontFamily:'var(--font-mono)', fontSize:9, color:c.textFaint}}>{region.word_count} palabras</span>
+    </button>
   );
 }
 
@@ -357,13 +386,20 @@ export default function Censuray() {
   const [fileSize, setFileSize] = useState('');
   const [drag, setDrag] = useState(false);
 
-  const [familyFriendly, setFamilyFriendly] = useState(true);
+  // Regions
+  const [regions, setRegions] = useState([]);
+  const [selectedRegion, setSelectedRegion] = useState('AR');
+
   const [cats, setCats] = useState({profanity: true, names: false, personal: false, brands: false});
+  const [detectSexual, setDetectSexual] = useState(true);
+  const [detectSlurs, setDetectSlurs] = useState(true);
+  const [detectBlasphemy, setDetectBlasphemy] = useState(false);
   const [sensitivity, setSensitivity] = useState('medium');
   const [sound, setSound] = useState('bleep');
   const [keywords, setKeywords] = useState([]);
   const [kwInput, setKwInput] = useState('');
   const [padding, setPadding] = useState(50);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const [progress, setProgress] = useState(0);
   const [processingPhase, setProcessingPhase] = useState('');
@@ -401,18 +437,43 @@ export default function Censuray() {
     } catch(e) { setUserPlan('free'); loadFeatures('free'); }
   };
 
+  const loadUserProfile = async (userId) => {
+    try {
+      const profile = await supabase.query('profiles', { select: 'preferred_region', eq: {id: userId}, single: true });
+      if (profile?.preferred_region) {
+        setSelectedRegion(profile.preferred_region);
+      }
+    } catch(e) { console.error('Could not load profile:', e); }
+  };
+
+  const loadRegions = async () => {
+    try {
+      const data = await api.getRegions();
+      if (data.regions && data.regions.length > 0) {
+        setRegions(data.regions);
+      }
+    } catch(e) { console.error('Could not load regions:', e); }
+  };
+
   useEffect(() => {
     handleOAuthRedirect();
+    loadRegions();
     (async () => {
       let u = await supabase.getUser();
       if (!u) u = await supabase.refreshSession();
-      if (u) { setUser(u); await loadUserPlan(u.id); setView('home'); }
-      else { setView('home'); }
+      if (u) {
+        setUser(u);
+        await loadUserPlan(u.id);
+        await loadUserProfile(u.id);
+        setView('home');
+      } else { setView('home'); }
     })();
     const unsub = supabase.onAuthChange(async (u) => {
       setUser(u);
-      if (u) { await loadUserPlan(u.id); }
-      else { setUserPlan('free'); setFeatures(DEFAULT_FEATURES); }
+      if (u) {
+        await loadUserPlan(u.id);
+        await loadUserProfile(u.id);
+      } else { setUserPlan('free'); setFeatures(DEFAULT_FEATURES); }
     });
     return unsub;
   }, []);
@@ -422,15 +483,15 @@ export default function Censuray() {
     try {
       if (authMode === 'forgot') {
         await supabase.resetPassword(authEmail);
-        setAuthSuccess('Te enviamos un email para restablecer tu contraseña');
+        setAuthSuccess('Te enviamos un email para restablecer tu contrasena');
         setAuthLoading(false); return;
       }
       if (authMode === 'register') {
         if (!authName.trim()) { setAuthError('Ingresa tu nombre'); setAuthLoading(false); return; }
-        if (authPass.length < 6) { setAuthError('La contraseña debe tener al menos 6 caracteres'); setAuthLoading(false); return; }
+        if (authPass.length < 6) { setAuthError('La contrasena debe tener al menos 6 caracteres'); setAuthLoading(false); return; }
         const data = await supabase.signUp(authEmail, authPass, authName.trim());
         if (data.needsConfirmation) {
-          setAuthSuccess('¡Cuenta creada! Revisá tu email para confirmar antes de iniciar sesión.');
+          setAuthSuccess('Cuenta creada! Revisa tu email para confirmar antes de iniciar sesion.');
           setAuthLoading(false); return;
         }
         setView('home');
@@ -440,7 +501,7 @@ export default function Censuray() {
       }
       setAuthEmail(''); setAuthPass(''); setAuthName('');
     } catch(e) {
-      setAuthError(e.message || 'Ocurrió un error');
+      setAuthError(e.message || 'Ocurrio un error');
     }
     setAuthLoading(false);
   };
@@ -468,13 +529,13 @@ export default function Censuray() {
     setView('processing');
     setProgress(0);
     setProcessError('');
-    setProcessingPhase('Subiendo archivo…');
+    setProcessingPhase('Subiendo archivo...');
 
     const phases = [
-      {at: 0, text: 'Subiendo archivo…'},
-      {at: 15, text: 'Transcribiendo con Whisper AI…'},
-      {at: 70, text: 'Analizando detecciones…'},
-      {at: 90, text: 'Finalizando…'},
+      {at: 0, text: 'Subiendo archivo...'},
+      {at: 15, text: 'Transcribiendo con Whisper AI...'},
+      {at: 70, text: 'Detectando palabras...'},
+      {at: 90, text: 'Finalizando...'},
     ];
 
     let prog = 0;
@@ -492,6 +553,10 @@ export default function Censuray() {
         categories: cats,
         sensitivity: sensitivity,
         custom_keywords: keywords,
+        region_code: selectedRegion,
+        detect_sexual: detectSexual,
+        detect_slurs: detectSlurs,
+        detect_blasphemy: detectBlasphemy,
       });
       clearInterval(interval);
       setProgress(100);
@@ -535,6 +600,7 @@ export default function Censuray() {
   });
 
   const userName = user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'User';
+  const currentRegion = regions.find(r => r.code === selectedRegion);
 
   if (view === 'loading') {
     return <div style={{minHeight:'100vh', background:c.bg, display:'flex', alignItems:'center', justifyContent:'center'}}><LoaderBars c={c}/></div>;
@@ -588,10 +654,10 @@ export default function Censuray() {
                     <p style={{fontFamily:'var(--font-mono)', fontSize:11, color:c.textFaint}}>{user.email}</p>
                     <div style={{display:'flex', alignItems:'center', gap:8, marginTop:8}}>
                       <PlanBadge plan={userPlan} c={c}/>
-                      <span style={{fontFamily:'var(--font-mono)', fontSize:10, color:c.textFaint}}>{getLimit('max_minutes_per_day') ? `${getLimit('max_minutes_per_day')} min/día` : 'Ilimitado'}</span>
+                      <span style={{fontFamily:'var(--font-mono)', fontSize:10, color:c.textFaint}}>{getLimit('max_minutes_per_day') ? `${getLimit('max_minutes_per_day')} min/dia` : 'Ilimitado'}</span>
                     </div>
                   </div>
-                  <button onClick={logout} style={{width:'100%', padding:'10px 12px', borderRadius:8, border:'none', background:'transparent', color:c.textSoft, cursor:'pointer', fontFamily:'var(--font-body)', fontSize:13, textAlign:'left'}}>Cerrar sesión</button>
+                  <button onClick={logout} style={{width:'100%', padding:'10px 12px', borderRadius:8, border:'none', background:'transparent', color:c.textSoft, cursor:'pointer', fontFamily:'var(--font-body)', fontSize:13, textAlign:'left'}}>Cerrar sesion</button>
                 </div>
               )}
             </div>
@@ -624,19 +690,19 @@ export default function Censuray() {
               <>
                 {authMode === 'register' && <AuthInput label="Nombre" type="text" value={authName} onChange={e => setAuthName(e.target.value)} c={c} placeholder="Tu nombre"/>}
                 <AuthInput label="Email" type="email" value={authEmail} onChange={e => setAuthEmail(e.target.value)} c={c} placeholder="tu@email.com"/>
-                {authMode !== 'forgot' && <AuthInput label="Contraseña" type="password" value={authPass} onChange={e => setAuthPass(e.target.value)} c={c} placeholder="••••••••"/>}
+                {authMode !== 'forgot' && <AuthInput label="Contrasena" type="password" value={authPass} onChange={e => setAuthPass(e.target.value)} c={c} placeholder="--------"/>}
                 {authError && (
                   <div style={{padding:'10px 12px', borderRadius:8, background:c.errBg, border:`1px solid ${c.err}33`, marginBottom:12, display:'flex', alignItems:'flex-start', gap:8}}>
-                    <span style={{color:c.err, fontSize:14}}>⚠</span>
+                    <span style={{color:c.err, fontSize:14}}>!</span>
                     <p style={{fontFamily:'var(--font-body)', fontSize:13, color:c.err, fontWeight:500}}>{authError}</p>
                   </div>
                 )}
                 <button onClick={handleAuth} className="btn btn-fill" style={{width:'100%', justifyContent:'center', marginTop:4, opacity: authLoading ? .6 : 1, pointerEvents: authLoading ? 'none' : 'auto'}}>
-                  {authLoading ? 'Cargando…' : authMode === 'login' ? 'Ingresar' : authMode === 'register' ? 'Crear cuenta' : 'Enviar link'}
+                  {authLoading ? 'Cargando...' : authMode === 'login' ? 'Ingresar' : authMode === 'register' ? 'Crear cuenta' : 'Enviar link'}
                 </button>
                 <div style={{display:'flex', alignItems:'center', gap:12, margin:'20px 0'}}>
                   <div style={{flex:1, height:1, background:c.border}}/>
-                  <span style={{fontFamily:'var(--font-mono)', fontSize:10, color:c.textFaint}}>o continúa con</span>
+                  <span style={{fontFamily:'var(--font-mono)', fontSize:10, color:c.textFaint}}>o continua con</span>
                   <div style={{flex:1, height:1, background:c.border}}/>
                 </div>
                 <button onClick={() => supabase.signInWithGoogle()} style={{width:'100%', padding:'12px', borderRadius:10, border:`1.5px solid ${c.border}`, background:'transparent', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:10, fontFamily:'var(--font-body)', fontSize:14, fontWeight:500, color:c.text}}>
@@ -646,19 +712,19 @@ export default function Censuray() {
                 <div style={{textAlign:'center', marginTop:20}}>
                   {authMode === 'login' && (
                     <>
-                      <button onClick={() => { setAuthMode('forgot'); setAuthError(''); }} style={{fontFamily:'var(--font-body)', fontSize:13, color:c.accent, background:'none', border:'none', cursor:'pointer', fontWeight:500}}>¿Olvidaste tu contraseña?</button>
-                      <p style={{fontFamily:'var(--font-body)', fontSize:13, color:c.textFaint, marginTop:12}}>¿No tienes cuenta? <button onClick={() => { setAuthMode('register'); setAuthError(''); }} style={{color:c.accent, background:'none', border:'none', cursor:'pointer', fontWeight:600, fontFamily:'var(--font-body)', fontSize:13}}>Regístrate gratis</button></p>
+                      <button onClick={() => { setAuthMode('forgot'); setAuthError(''); }} style={{fontFamily:'var(--font-body)', fontSize:13, color:c.accent, background:'none', border:'none', cursor:'pointer', fontWeight:500}}>Olvidaste tu contrasena?</button>
+                      <p style={{fontFamily:'var(--font-body)', fontSize:13, color:c.textFaint, marginTop:12}}>No tienes cuenta? <button onClick={() => { setAuthMode('register'); setAuthError(''); }} style={{color:c.accent, background:'none', border:'none', cursor:'pointer', fontWeight:600, fontFamily:'var(--font-body)', fontSize:13}}>Registrate gratis</button></p>
                     </>
                   )}
                   {authMode === 'register' && (
-                    <p style={{fontFamily:'var(--font-body)', fontSize:13, color:c.textFaint}}>¿Ya tienes cuenta? <button onClick={() => { setAuthMode('login'); setAuthError(''); }} style={{color:c.accent, background:'none', border:'none', cursor:'pointer', fontWeight:600, fontFamily:'var(--font-body)', fontSize:13}}>Ingresar</button></p>
+                    <p style={{fontFamily:'var(--font-body)', fontSize:13, color:c.textFaint}}>Ya tienes cuenta? <button onClick={() => { setAuthMode('login'); setAuthError(''); }} style={{color:c.accent, background:'none', border:'none', cursor:'pointer', fontWeight:600, fontFamily:'var(--font-body)', fontSize:13}}>Ingresar</button></p>
                   )}
-                  {authMode === 'forgot' && <button onClick={() => { setAuthMode('login'); setAuthError(''); setAuthSuccess(''); }} style={{fontFamily:'var(--font-body)', fontSize:13, color:c.accent, background:'none', border:'none', cursor:'pointer'}}>← Volver al login</button>}
+                  {authMode === 'forgot' && <button onClick={() => { setAuthMode('login'); setAuthError(''); setAuthSuccess(''); }} style={{fontFamily:'var(--font-body)', fontSize:13, color:c.accent, background:'none', border:'none', cursor:'pointer'}}>Volver al login</button>}
                 </div>
               </>
             )}
           </div>
-          <button onClick={() => setView('home')} style={{display:'block', margin:'20px auto', fontFamily:'var(--font-body)', fontSize:13, color:c.textFaint, background:'none', border:'none', cursor:'pointer'}}>← Volver al inicio</button>
+          <button onClick={() => setView('home')} style={{display:'block', margin:'20px auto', fontFamily:'var(--font-body)', fontSize:13, color:c.textFaint, background:'none', border:'none', cursor:'pointer'}}>Volver al inicio</button>
         </div>
       )}
 
@@ -670,21 +736,21 @@ export default function Censuray() {
             Censura inteligente<br/><span style={{fontStyle:'normal', color:c.textSoft}}>para tu audio</span>
           </h1>
           <p style={{fontFamily:'var(--font-body)', fontSize:17, lineHeight:1.7, color:c.textSoft, maxWidth:440, marginBottom:40, fontWeight:300}}>
-            Sube tu podcast, entrevista o video. Configura qué censurar. Revisa cada detección con contexto. Descarga el resultado.
+            Sube tu podcast, entrevista o video. Configura que censurar. Revisa cada deteccion con contexto. Descarga el resultado.
           </p>
           <div style={{display:'flex', gap:12, flexWrap:'wrap', marginBottom:64}}>
             <button className="btn btn-fill" onClick={() => {
               if (!user) { setView('auth'); setAuthMode('register'); }
               else { setView('upload'); }
             }}>
-              {user ? 'Subir archivo' : 'Comenzar gratis'} <span style={{fontSize:16, opacity:.7}}>→</span>
+              {user ? 'Subir archivo' : 'Comenzar gratis'} <span style={{fontSize:16, opacity:.7}}>{'\u2192'}</span>
             </button>
           </div>
           <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:1, background:c.border, borderRadius:14, overflow:'hidden'}}>
             {[
-              {n:'01', t:'Configura, no edites', d:'Define las reglas y la IA procesa horas de audio automáticamente'},
-              {n:'02', t:'Revisa cada detección', d:'Escucha el contexto y decide cuáles mantener censuradas'},
-              {n:'03', t:'Más que groserías', d:'Nombres, datos personales, marcas'},
+              {n:'01', t:'Configura, no edites', d:'Define las reglas y la IA procesa horas de audio automaticamente'},
+              {n:'02', t:'Revisa cada deteccion', d:'Escucha el contexto y decide cuales mantener censuradas'},
+              {n:'03', t:'Region especifica', d:'Diccionarios regionales para Argentina, Mexico y Espana'},
               {n:'04', t:'Tu sonido', d:'Bleep o silencio'},
             ].map((item, i) => (
               <div key={i} style={{padding:'28px 24px', background:c.surface, animation:`enterUp .6s cubic-bezier(.16,1,.3,1) ${.08*i+.3}s both`}}>
@@ -702,28 +768,28 @@ export default function Censuray() {
         <div style={{maxWidth:520, margin:'0 auto', padding:'72px 24px', animation:'enterUp .5s cubic-bezier(.16,1,.3,1)'}}>
           <span className="tag" style={{background:c.accentMist, color:c.accent, marginBottom:20}}>Paso 1 — Archivo</span>
           <h2 style={{fontFamily:'var(--font-display)', fontSize:32, fontStyle:'italic', fontWeight:400, marginBottom:6}}>Sube tu archivo</h2>
-          <p style={{fontFamily:'var(--font-body)', fontSize:14, color:c.textSoft, marginBottom:4, fontWeight:300}}>Audio o video — MP3, WAV, M4A, MP4, MOV, WEBM</p>
+          <p style={{fontFamily:'var(--font-body)', fontSize:14, color:c.textSoft, marginBottom:4, fontWeight:300}}>Audio o video</p>
           <p style={{fontFamily:'var(--font-mono)', fontSize:11, color:c.textFaint, marginBottom:32}}>
-            {getLimit('max_minutes_per_day') ? `${getLimit('max_minutes_per_day')} min/día` : 'Ilimitado'} · Máx {getLimit('max_file_size_mb') >= 1000 ? `${getLimit('max_file_size_mb')/1000}GB` : `${getLimit('max_file_size_mb')}MB`}
+            {getLimit('max_minutes_per_day') ? `${getLimit('max_minutes_per_day')} min/dia` : 'Ilimitado'} - Max {getLimit('max_file_size_mb') >= 1000 ? `${getLimit('max_file_size_mb')/1000}GB` : `${getLimit('max_file_size_mb')}MB`}
           </p>
           <div onDragOver={e => { e.preventDefault(); setDrag(true); }} onDragLeave={() => setDrag(false)} onDrop={e => { e.preventDefault(); setDrag(false); const f = e.dataTransfer.files[0]; if (f) handleFileSelect(f); }} onClick={() => { const inp = document.createElement('input'); inp.type='file'; inp.accept='*/*'; inp.onchange = e => { const f = e.target.files[0]; if (f) handleFileSelect(f); }; inp.click(); }} style={{border:`1.5px dashed ${drag ? c.accent : c.border}`, borderRadius:16, padding:'64px 24px', textAlign:'center', cursor:'pointer', background: drag ? c.accentMist : c.surface, transition:'all .25s', boxShadow: drag ? c.shadow3 : c.shadow1}}>
-            <div style={{width:56, height:56, borderRadius:14, background:c.accentMist, border:`1px solid ${c.accent}22`, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px', color:c.accent, fontSize:22, animation: drag ? 'gentleFloat 1s ease-in-out infinite' : 'none'}}>↑</div>
-            <p style={{fontFamily:'var(--font-body)', fontSize:15, fontWeight:500, marginBottom:6}}>{drag ? 'Suelta aquí' : 'Arrastra tu archivo'}</p>
+            <div style={{width:56, height:56, borderRadius:14, background:c.accentMist, border:`1px solid ${c.accent}22`, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px', color:c.accent, fontSize:22, animation: drag ? 'gentleFloat 1s ease-in-out infinite' : 'none'}}>{'\u2191'}</div>
+            <p style={{fontFamily:'var(--font-body)', fontSize:15, fontWeight:500, marginBottom:6}}>{drag ? 'Suelta aqui' : 'Arrastra tu archivo'}</p>
             <p style={{fontFamily:'var(--font-body)', fontSize:13, color:c.textFaint, fontWeight:300}}>o haz clic para seleccionar</p>
           </div>
-          <button className="btn btn-ghost" onClick={() => setView('home')} style={{marginTop:20, width:'100%', justifyContent:'center'}}>← Volver</button>
+          <button className="btn btn-ghost" onClick={() => setView('home')} style={{marginTop:20, width:'100%', justifyContent:'center'}}>Volver</button>
         </div>
       )}
 
       {/* CONFIG */}
       {view === 'config' && (
         <div style={{maxWidth:660, margin:'0 auto', padding:'36px 24px 60px', animation:'enterUp .5s cubic-bezier(.16,1,.3,1)'}}>
-          <span className="tag" style={{background:c.accentMist, color:c.accent, marginBottom:10}}>Paso 2 — Configuración</span>
+          <span className="tag" style={{background:c.accentMist, color:c.accent, marginBottom:10}}>Paso 2 — Configuracion</span>
           <h2 style={{fontFamily:'var(--font-display)', fontSize:28, fontStyle:'italic', fontWeight:400, marginTop:8, marginBottom:24}}>Configura la censura</h2>
 
           {processError && (
             <div style={{padding:'12px 14px', borderRadius:10, background:c.errBg, border:`1px solid ${c.err}33`, marginBottom:16, display:'flex', alignItems:'flex-start', gap:8}}>
-              <span style={{color:c.err}}>⚠</span>
+              <span style={{color:c.err}}>!</span>
               <p style={{fontFamily:'var(--font-body)', fontSize:13, color:c.err, fontWeight:500}}>{processError}</p>
             </div>
           )}
@@ -737,20 +803,18 @@ export default function Censuray() {
             <button onClick={() => setView('upload')} style={{fontFamily:'var(--font-body)', fontSize:12, fontWeight:500, color:c.accent, background:'none', border:'none', cursor:'pointer'}}>Cambiar</button>
           </div>
 
-          <Section c={c} delay={.05}>
-            <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 0'}}>
-              <div>
-                <div style={{display:'flex', alignItems:'center', gap:8, marginBottom:4}}>
-                  <span style={{fontSize:20}}>✨</span>
-                  <span style={{fontFamily:'var(--font-body)', fontSize:16, fontWeight:600}}>Apto para todo público</span>
-                </div>
-                <p style={{fontFamily:'var(--font-body)', fontSize:12, color:c.textSoft, fontWeight:300, marginLeft:28}}>Censura todo lenguaje inapropiado</p>
+          {/* REGION SELECTOR */}
+          {regions.length > 0 && (
+            <Section title="Region del contenido" subtitle="Selecciona la region para usar el diccionario correcto" c={c} delay={.05}>
+              <div style={{display:'flex', gap:8, flexWrap:'wrap'}}>
+                {regions.map(r => (
+                  <RegionCard key={r.code} region={r} selected={selectedRegion === r.code} onClick={() => setSelectedRegion(r.code)} c={c}/>
+                ))}
               </div>
-              <Toggle on={familyFriendly} onChange={() => setFamilyFriendly(!familyFriendly)} c={c}/>
-            </div>
-          </Section>
+            </Section>
+          )}
 
-          <Section title="Qué detectar" c={c} delay={.1}>
+          <Section title="Que detectar" c={c} delay={.1}>
             {CATEGORIES.map(cat => {
               const allowed = canUse(cat.featureKey);
               return (
@@ -768,13 +832,55 @@ export default function Censuray() {
             })}
           </Section>
 
-          {canUse('custom_keywords') && (
-            <Section title="Palabras personalizadas" c={c} delay={.2}>
-              <div style={{display:'flex', gap:8, marginBottom: keywords.length ? 12 : 0}}>
-                <input value={kwInput} onChange={e => setKwInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addKeyword(); }} placeholder="Escribe una palabra…" style={{flex:1, padding:'10px 14px', borderRadius:8, border:`1.5px solid ${c.border}`, background:c.bgAlt, fontFamily:'var(--font-body)', fontSize:13, color:c.text, outline:'none'}} onFocus={e => e.target.style.borderColor = c.accent} onBlur={e => e.target.style.borderColor = c.border}/>
-                <button className="btn btn-subtle" onClick={addKeyword}>+ Agregar</button>
+          {canUse('sensitivity_levels') && (
+            <Section title="Sensibilidad" subtitle="Que tan estricto debe ser el filtro" c={c} delay={.15}>
+              <div style={{display:'flex', gap:8}}>
+                {SENSITIVITY.map(s => (
+                  <button key={s.id} onClick={() => setSensitivity(s.id)} style={{flex:1, padding:'12px 10px', borderRadius:10, cursor:'pointer', background: sensitivity === s.id ? c.accent : 'transparent', border:`1.5px solid ${sensitivity === s.id ? c.accent : c.border}`, textAlign:'left'}}>
+                    <span style={{fontFamily:'var(--font-body)', fontSize:13, fontWeight:600, color: sensitivity === s.id ? '#FFF' : c.text, display:'block'}}>{s.label}</span>
+                    <span style={{fontFamily:'var(--font-body)', fontSize:11, color: sensitivity === s.id ? 'rgba(255,255,255,.6)' : c.textFaint, fontWeight:300}}>{s.desc}</span>
+                  </button>
+                ))}
               </div>
-              {keywords.length > 0 && <div style={{display:'flex', flexWrap:'wrap', gap:6}}>{keywords.map(kw => <KeywordTag key={kw} word={kw} onRemove={() => setKeywords(p => p.filter(k => k !== kw))} c={c}/>)}</div>}
+            </Section>
+          )}
+
+          {/* ADVANCED OPTIONS */}
+          <div style={{marginBottom:12}}>
+            <button onClick={() => setShowAdvanced(!showAdvanced)} style={{width:'100%', padding:'12px 16px', borderRadius:10, background:'transparent', border:`1.5px dashed ${c.border}`, color:c.textSoft, cursor:'pointer', fontFamily:'var(--font-body)', fontSize:13, fontWeight:500, display:'flex', alignItems:'center', justifyContent:'center', gap:6}}>
+              {showAdvanced ? '— Ocultar' : '+ Mostrar'} opciones avanzadas
+            </button>
+          </div>
+
+          {showAdvanced && (
+            <Section title="Categorias avanzadas" subtitle="Tipos especificos de contenido a censurar" c={c} delay={.2}>
+              {ADVANCED_CATEGORIES.map(ac => {
+                const state = ac.id === 'sexual' ? detectSexual : ac.id === 'slurs' ? detectSlurs : detectBlasphemy;
+                const setter = ac.id === 'sexual' ? setDetectSexual : ac.id === 'slurs' ? setDetectSlurs : setDetectBlasphemy;
+                return (
+                  <div key={ac.id} style={{display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 0', borderBottom:`1px solid ${c.border}`}}>
+                    <div style={{display:'flex', alignItems:'flex-start', gap:12, flex:1}}>
+                      <span style={{fontSize:18, marginTop:1}}>{ac.icon}</span>
+                      <div>
+                        <span style={{fontFamily:'var(--font-body)', fontSize:14, fontWeight:500}}>{ac.label}</span>
+                        <span style={{fontFamily:'var(--font-body)', fontSize:12, color:c.textFaint, fontWeight:300, display:'block'}}>{ac.desc}</span>
+                      </div>
+                    </div>
+                    <Toggle on={state} onChange={() => setter(!state)} c={c}/>
+                  </div>
+                );
+              })}
+
+              {canUse('custom_keywords') && (
+                <div style={{marginTop:20, paddingTop:16, borderTop:`1px solid ${c.border}`}}>
+                  <p style={{fontFamily:'var(--font-body)', fontSize:13, fontWeight:500, marginBottom:10}}>Palabras personalizadas</p>
+                  <div style={{display:'flex', gap:8, marginBottom: keywords.length ? 12 : 0}}>
+                    <input value={kwInput} onChange={e => setKwInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addKeyword(); }} placeholder="Escribe una palabra..." style={{flex:1, padding:'10px 14px', borderRadius:8, border:`1.5px solid ${c.border}`, background:c.bgAlt, fontFamily:'var(--font-body)', fontSize:13, color:c.text, outline:'none'}} onFocus={e => e.target.style.borderColor = c.accent} onBlur={e => e.target.style.borderColor = c.border}/>
+                    <button className="btn btn-subtle" onClick={addKeyword}>+ Agregar</button>
+                  </div>
+                  {keywords.length > 0 && <div style={{display:'flex', flexWrap:'wrap', gap:6}}>{keywords.map(kw => <KeywordTag key={kw} word={kw} onRemove={() => setKeywords(p => p.filter(k => k !== kw))} c={c}/>)}</div>}
+                </div>
+              )}
             </Section>
           )}
 
@@ -793,8 +899,10 @@ export default function Censuray() {
           </Section>
 
           <div style={{display:'flex', gap:10, marginTop:8, justifyContent:'space-between', flexWrap:'wrap'}}>
-            <button className="btn btn-ghost" onClick={() => setView('upload')}>← Cambiar archivo</button>
-            <button className="btn btn-fill" onClick={startProcessing}>Procesar audio <span style={{fontSize:16, opacity:.7}}>→</span></button>
+            <button className="btn btn-ghost" onClick={() => setView('upload')}>Cambiar archivo</button>
+            <button className="btn btn-fill" onClick={startProcessing}>
+              Procesar con {currentRegion ? currentRegion.flag : '🌐'} {currentRegion ? currentRegion.name : selectedRegion}
+            </button>
           </div>
         </div>
       )}
@@ -813,6 +921,11 @@ export default function Censuray() {
               <span>{fileName}</span>
               <span>{Math.round(progress)}%</span>
             </div>
+            {currentRegion && (
+              <p style={{fontFamily:'var(--font-mono)', fontSize:11, color:c.textFaint, marginTop:14}}>
+                {currentRegion.flag} Diccionario: {currentRegion.name}
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -820,7 +933,7 @@ export default function Censuray() {
       {/* REVIEW */}
       {view === 'review' && (
         <div style={{maxWidth:780, margin:'0 auto', padding:'36px 24px 60px', animation:'enterUp .5s cubic-bezier(.16,1,.3,1)'}}>
-          <span className="tag" style={{background:c.accentMist, color:c.accent, marginBottom:10}}>Paso 3 — Revisión</span>
+          <span className="tag" style={{background:c.accentMist, color:c.accent, marginBottom:10}}>Paso 3 — Revision</span>
           <h2 style={{fontFamily:'var(--font-display)', fontSize:28, fontStyle:'italic', fontWeight:400, marginTop:8, marginBottom:20}}>Revisar detecciones</h2>
 
           {processError && (
@@ -834,7 +947,7 @@ export default function Censuray() {
               {l:'Detectadas', v:totalDet},
               {l:'Censuradas', v:flagged, a:true},
               {l:'Conservadas', v:totalDet-flagged},
-              {l:'Duración', v:`${Math.floor(duration/60)}:${String(Math.floor(duration%60)).padStart(2,'0')}`},
+              {l:'Duracion', v:`${Math.floor(duration/60)}:${String(Math.floor(duration%60)).padStart(2,'0')}`},
             ].map((s, i) => (
               <div key={i} style={{padding:16, background:c.surface, textAlign:'center'}}>
                 <span style={{fontFamily:'var(--font-mono)', fontSize:9, color:c.textFaint, textTransform:'uppercase', display:'block', marginBottom:4}}>{s.l}</span>
@@ -846,7 +959,7 @@ export default function Censuray() {
           {detections.length > 0 && (
             <>
               <div style={{display:'flex', gap:8, alignItems:'center', marginBottom:16, flexWrap:'wrap'}}>
-                <input value={searchDet} onChange={e => setSearchDet(e.target.value)} placeholder="Buscar palabra…" style={{padding:'9px 14px', borderRadius:8, border:`1.5px solid ${c.border}`, background:c.bgAlt, fontFamily:'var(--font-body)', fontSize:13, color:c.text, outline:'none', width:180}} onFocus={e => e.target.style.borderColor = c.accent} onBlur={e => e.target.style.borderColor = c.border}/>
+                <input value={searchDet} onChange={e => setSearchDet(e.target.value)} placeholder="Buscar palabra..." style={{padding:'9px 14px', borderRadius:8, border:`1.5px solid ${c.border}`, background:c.bgAlt, fontFamily:'var(--font-body)', fontSize:13, color:c.text, outline:'none', width:180}} onFocus={e => e.target.style.borderColor = c.accent} onBlur={e => e.target.style.borderColor = c.border}/>
                 <div style={{display:'flex', gap:4, flexWrap:'wrap'}}>
                   {[{id:'all', label:'Todas'}, ...CATEGORIES].map(cat => (
                     <button key={cat.id} onClick={() => setFilterCat(cat.id)} style={{padding:'7px 12px', borderRadius:8, border:`1.5px solid ${filterCat === cat.id ? c.accent : c.border}`, background: filterCat === cat.id ? c.accentMist : 'transparent', color: filterCat === cat.id ? c.accent : c.textSoft, fontFamily:'var(--font-body)', fontSize:12, fontWeight:500, cursor:'pointer'}}>
@@ -858,7 +971,7 @@ export default function Censuray() {
 
               <div style={{background:c.surface, borderRadius:14, border:`1px solid ${c.border}`, overflow:'hidden'}}>
                 <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', borderBottom:`1px solid ${c.border}`, background:c.bgAlt}}>
-                  <span style={{fontFamily:'var(--font-mono)', fontSize:10, color:c.textFaint, textTransform:'uppercase'}}>{filteredDet.length} detección{filteredDet.length !== 1 ? 'es' : ''}</span>
+                  <span style={{fontFamily:'var(--font-mono)', fontSize:10, color:c.textFaint, textTransform:'uppercase'}}>{filteredDet.length} deteccion{filteredDet.length !== 1 ? 'es' : ''}</span>
                   <div style={{display:'flex', gap:8}}>
                     <button onClick={() => setDetections(ds => ds.map(d => ({...d, is_censored: true})))} style={{fontFamily:'var(--font-mono)', fontSize:10, color:c.accent, background:'none', border:'none', cursor:'pointer'}}>Censurar todas</button>
                     <span style={{color:c.border}}>|</span>
@@ -884,17 +997,17 @@ export default function Censuray() {
 
           {detections.length === 0 && (
             <div style={{padding:40, textAlign:'center', background:c.surface, borderRadius:14, border:`1px solid ${c.border}`, marginBottom:20}}>
-              <p style={{fontFamily:'var(--font-body)', fontSize:15, fontWeight:500, marginBottom:8}}>🎉 Sin detecciones</p>
-              <p style={{fontFamily:'var(--font-body)', fontSize:13, color:c.textFaint}}>No se encontraron palabras para censurar con tu configuración</p>
+              <p style={{fontFamily:'var(--font-body)', fontSize:15, fontWeight:500, marginBottom:8}}>Sin detecciones</p>
+              <p style={{fontFamily:'var(--font-body)', fontSize:13, color:c.textFaint}}>No se encontraron palabras para censurar con tu configuracion</p>
             </div>
           )}
 
           <div style={{display:'flex', gap:10, marginTop:24, justifyContent:'space-between', flexWrap:'wrap'}}>
-            <button className="btn btn-ghost" onClick={() => setView('config')}>← Reconfigurar</button>
+            <button className="btn btn-ghost" onClick={() => setView('config')}>Reconfigurar</button>
             <div style={{display:'flex', gap:10, alignItems:'center'}}>
               <span style={{fontFamily:'var(--font-mono)', fontSize:12, color:c.textSoft}}>{flagged}/{totalDet} activas</span>
               <button className="btn btn-fill" onClick={applyAndDownload} style={{opacity: applying ? .6 : 1, pointerEvents: applying ? 'none' : 'auto'}}>
-                {applying ? 'Procesando…' : 'Generar audio'} ↓
+                {applying ? 'Procesando...' : 'Generar audio'}
               </button>
             </div>
           </div>
@@ -905,18 +1018,18 @@ export default function Censuray() {
       {view === 'done' && (
         <div style={{maxWidth:480, margin:'0 auto', padding:'80px 24px', animation:'enterScale .5s cubic-bezier(.16,1,.3,1)', textAlign:'center'}}>
           <div style={{background:c.surface, borderRadius:20, border:`1px solid ${c.border}`, boxShadow:c.shadow2, padding:'44px 32px'}}>
-            <div style={{width:64, height:64, borderRadius:'50%', background:c.okBg, margin:'0 auto 20px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:28}}>✓</div>
-            <h3 style={{fontFamily:'var(--font-display)', fontSize:24, fontStyle:'italic', marginBottom:8}}>¡Listo!</h3>
-            <p style={{fontFamily:'var(--font-body)', fontSize:14, color:c.textSoft, fontWeight:300, marginBottom:24}}>Tu archivo censurado está listo para descargar</p>
+            <div style={{width:64, height:64, borderRadius:'50%', background:c.okBg, margin:'0 auto 20px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:28}}>{'\u2713'}</div>
+            <h3 style={{fontFamily:'var(--font-display)', fontSize:24, fontStyle:'italic', marginBottom:8}}>Listo</h3>
+            <p style={{fontFamily:'var(--font-body)', fontSize:14, color:c.textSoft, fontWeight:300, marginBottom:24}}>Tu archivo censurado esta listo para descargar</p>
             <a href={downloadUrl} download={downloadFilename} className="btn btn-fill" style={{width:'100%', justifyContent:'center', textDecoration:'none'}}>
-              Descargar {downloadFilename} ↓
+              Descargar {downloadFilename}
             </a>
           </div>
-          <button onClick={() => { resetJob(); setView('home'); }} style={{marginTop:20, background:'none', border:'none', color:c.textSoft, fontFamily:'var(--font-body)', fontSize:13, cursor:'pointer'}}>← Procesar otro archivo</button>
+          <button onClick={() => { resetJob(); setView('home'); }} style={{marginTop:20, background:'none', border:'none', color:c.textSoft, fontFamily:'var(--font-body)', fontSize:13, cursor:'pointer'}}>Procesar otro archivo</button>
         </div>
       )}
 
-      <footer style={{textAlign:'center', padding:'48px 24px 20px', fontFamily:'var(--font-mono)', fontSize:10, color:c.textFaint}}>Censuray © 2026</footer>
+      <footer style={{textAlign:'center', padding:'48px 24px 20px', fontFamily:'var(--font-mono)', fontSize:10, color:c.textFaint}}>Censuray 2026</footer>
     </div>
   );
 }
